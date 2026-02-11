@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kampala Air Quality Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        
+        /* Legend Styling */
+        .legend {
+            background: white;
+            padding: 10px;
+            line-height: 18px;
+            color: #555;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+<script>
+    // 1. Initialize Map (Centered on Kampala)
+    const map = L.map('map').setView([0.3136, 32.5811], 12); 
+
+    // Add Street Map Layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 2. Define PM2.5 Danger Colors (EPA Standards)
+    function getPmColor(pmValue) {
+        if (pmValue >= 250.5) return '#800000'; // Maroon
+        if (pmValue >= 150.5) return '#800080'; // Purple
+        if (pmValue >= 55.5)  return '#FF0000'; // Red
+        if (pmValue >= 35.5)  return '#FFA500'; // Orange
+        if (pmValue >= 12.1)  return '#FFFF00'; // Yellow
+        return '#00FF00';                       // Green
+    }
+
+    // 3. YOUR FILES LIST
+    // IMPORTANT: The "file" name must match your GitHub upload EXACTLY (case-sensitive!)
+    const dataFiles = [
+        { file: "julian.csv", contributor: "Owomugisha Julian" },
+        // { file: "boda.csv", contributor: "Boda boda" },
+        // { file: "joseph.csv", contributor: "Joseph Beyanga" }
+    ];
+
+    // 4. Load and Plot the Data
+    dataFiles.forEach(item => {
+        Papa.parse(item.file, {
+            download: true,
+            header: true, 
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                
+                // Debugging: Warn if file is empty
+                if (!results.data || results.data.length === 0) {
+                    console.error(`File ${item.file} is empty or not found.`);
+                    return;
+                }
+
+                results.data.forEach(row => {
+                    // YOUR FILE SPECIFICALLY USES "PM 2.5" (with a space)
+                    // We also check for "Latitude" and "Longitude"
+                    const lat = row.Latitude;
+                    const lng = row.Longitude;
+                    const pmValue = row["PM 2.5"]; // <--- This was the fix!
+
+                    // Only plot if we have valid numbers
+                    if (lat && lng && (pmValue !== undefined && pmValue !== null && pmValue !== "")) {
+                        L.circleMarker([lat, lng], {
+                            radius: 5,
+                            fillColor: getPmColor(pmValue),
+                            color: "#000",
+                            weight: 0.5,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        })
+                        .addTo(map)
+                        .bindPopup(`
+                            <b>PM2.5:</b> ${pmValue} µg/m³<br>
+                            <b>Contributor:</b> ${item.contributor}
+                        `);
+                    }
+                });
+            },
+            error: function(err) {
+                alert(`Could not load file: ${item.file}\nMake sure it is uploaded to GitHub and the name matches exactly.`);
+            }
+        });
+    });
+
+    // 5. Add Map Legend
+    var legend = L.control({position: 'bottomleft'});
+    legend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'legend'),
+            grades = [0, 12.1, 35.5, 55.5, 150.5, 250.5],
+            labels = ['Good', 'Moderate', 'Unhealthy (Sens.)', 'Unhealthy', 'Very Unhealthy', 'Hazardous'];
+
+        div.innerHTML += '<b>PM2.5 Levels</b><br>';
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML +=
+                '<i style="background:' + getPmColor(grades[i] + 1) + '"></i> ' +
+                labels[i] + '<br>';
+        }
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
+
+</body>
+</html>
